@@ -1,6 +1,10 @@
-import numpy as np
-import pandas as pd
-import plotly.express as px
+import os
+import sys
+import math
+
+import numpy as np # type: ignore
+import pandas as pd # type: ignore
+import plotly.express as px # type: ignore
 
 
 class DDM():
