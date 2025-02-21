@@ -23,14 +23,15 @@ class DDM():
     def simulate(self,trials, timesteps):
         results = []
         trajectories = []
+        noise_vector = np.random.randn(trials,timesteps)
         for trial in range(trials):
             x = self.initial_condition
-            traj = [x]
+            traj = np.zeros(timesteps)
             for y in range(timesteps):
-                noise_term = np.random.randn() * np.sqrt(self.dt)
+                noise_term = noise_vector[trial,y] * np.sqrt(self.dt)
                 dx = ((self.drift_rate)*self.dt) + (self.noise_mag * noise_term)
                 x += dx
-                traj.append(x)
+                traj[y] = x
 
                 if x >= self.threshold:
                     results.append("A")
@@ -40,8 +41,9 @@ class DDM():
                     break
             else:
                 results.append("None")
-            trajectories.append(traj)
-        
+            trajectories.append(traj[:y+1])
+
+            
         self.simulated_trajectories = trajectories
         self.simulated_results = results
     
