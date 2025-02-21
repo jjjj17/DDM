@@ -5,6 +5,7 @@ import math
 import numpy as np # type: ignore
 import pandas as pd # type: ignore
 import plotly.express as px # type: ignore
+import plotly.graph_objects as go #type: ignore
 
 
 class DDM():
@@ -14,7 +15,7 @@ class DDM():
         self.input_b = input_b
         self.drift_rate = self.input_a - self.input_b
         self.noise_mag = noise_mag #noise values should go from 0 to 1.
-        self.threshold = threshold
+        self.threshold = Threshold(threshold)
         self.initial_condition = initial_condition
 
         self.simulated_trajectories = None
@@ -33,10 +34,10 @@ class DDM():
                 x += dx
                 traj[y] = x
 
-                if x >= self.threshold:
+                if x >= self.threshold.th[y]:
                     results.append("A")
                     break
-                elif x <= -self.threshold:
+                elif x <= -self.threshold.th[y]:
                     results.append("B")
                     break
             else:
@@ -51,6 +52,17 @@ class DDM():
         s = pd.DataFrame(self.simulated_trajectories).T
         s.index = s.index * self.dt
         fig = px.line(s, title="Drift-Diffusion Model Simulations", labels={"index": "Time (ms)", "value": "Decision Variable x(t)"})
-        fig.add_hline(y=self.threshold, line_dash="dash", line_color="red", annotation_text="Decision A")
-        fig.add_hline(y=-self.threshold, line_dash="dash", line_color="blue", annotation_text="Decision B")
+        fig.add_trace(go.Scatter(x=np.linspace(0,1000,len(self.threshold.th)), y=self.threshold.th, mode='lines', name='Decision A'))
+        fig.add_trace(go.Scatter(x=np.linspace(0,1000,len(self.threshold.th)), y=-self.threshold.th, mode='lines', name='Decision B'))
         fig.show()
+
+class Threshold():
+    def __init__(self, th, type = "standard"):
+        self.type = type
+        self.th = np.full(1000,th)
+    
+    def collapse(self, timesteps, a, b, c):
+        self.type = "collapsing"
+        x = np.linspace(0, timesteps, timesteps)
+        bound = a * np.exp(-b * x) + c#(a - b * np.log(x + c))
+        self.th = bound
