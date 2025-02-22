@@ -6,6 +6,7 @@ import numpy as np # type: ignore
 import pandas as pd # type: ignore
 import plotly.express as px # type: ignore
 import plotly.graph_objects as go #type: ignore
+import optuna #type: ignore
 
 
 class DDM():
@@ -17,6 +18,37 @@ class DDM():
 
         self.simulated_trajectories = None
         self.simulated_results = None
+    
+    def fit(self, trials_data):
+        timesteps = 1000
+        dt = 1
+        def objective(trial):
+
+            drift_rate = trial.suggest_uniform("drift_rate", 0.001, 0.2)
+            noise_mag = trial.suggest_uniform("noise_mag", 0.01, 1.0)
+            threshold = trial.suggest_uniform("threshold", 0.1, 20.0)
+
+            self.drift_rate = drift_rate
+            self.noise_mag = noise_mag
+            self.threshold = Threshold(threshold)
+
+            simulation = Simulation(self, dt, timesteps, len(trials_data))
+
+            error = np.mean((simulation.reaction_times - trials_data) ** 2)  # MSE
+            return error
+
+        study = optuna.create_study(direction="minimize")
+        study.optimize(objective, n_trials=100) #optimization trials
+        
+        best_params = study.best_params
+        print(f"Best parameters: {best_params}")
+
+        self.drift_rate = best_params['drift_rate']
+        self.noise_mag = best_params['noise_mag']
+        self.threshold = Threshold(best_params['threshold'])
+
+        return study
+
 
 
 class Threshold():
