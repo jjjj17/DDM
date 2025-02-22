@@ -9,11 +9,9 @@ import plotly.graph_objects as go #type: ignore
 
 
 class DDM():
-    def __init__(self, dt, input_a, input_b, noise_mag, threshold, initial_condition = 0):
+    def __init__(self, dt, drift_rate, noise_mag, threshold, initial_condition = 0):
         self.dt = dt #in ms
-        self.input_a = input_a
-        self.input_b = input_b
-        self.drift_rate = self.input_a - self.input_b
+        self.drift_rate = drift_rate #positive values go towards A (top)
         self.noise_mag = noise_mag #noise values should go from 0 to 1.
         self.threshold = Threshold(threshold)
         self.initial_condition = initial_condition
@@ -24,29 +22,37 @@ class DDM():
     def simulate(self,trials, timesteps):
         results = []
         trajectories = []
+
         noise_vector = np.random.randn(trials,timesteps)
-        for trial in range(trials):
+        trial_objects = [Trial(prob_A=0.5) for _ in range(trials)]
+
+        for i, trial in enumerate(trial_objects):
+            trial_drift = self.drift_rate if trial.truth_value == "A" else -self.drift_rate
+
             x = self.initial_condition
             traj = np.zeros(timesteps)
+
             for y in range(timesteps):
-                noise_term = noise_vector[trial,y] * np.sqrt(self.dt)
-                dx = ((self.drift_rate)*self.dt) + (self.noise_mag * noise_term)
+                noise_term = noise_vector[i,y] * np.sqrt(self.dt)
+                dx = ((trial_drift)*self.dt) + (self.noise_mag * noise_term)
                 x += dx
                 traj[y] = x
 
                 if x >= self.threshold.th[y]:
-                    results.append("A")
+                    results.append(("A", str(trial.truth_value)))
                     break
                 elif x <= -self.threshold.th[y]:
-                    results.append("B")
+                    results.append(("B", str(trial.truth_value)))
                     break
             else:
-                results.append("None")
+                results.append(("None", str(trial.truth_value)))
             trajectories.append(traj[:y+1])
 
             
         self.simulated_trajectories = trajectories
         self.simulated_results = results
+
+        self.error_rate = sum((x[0]!=x[1] for x in self.simulated_results))/trials
     
     def plot_trajectories(self):
         s = pd.DataFrame(self.simulated_trajectories).T
@@ -66,3 +72,8 @@ class Threshold():
         x = np.linspace(0, timesteps, timesteps)
         bound = a * np.exp(-b * x) + c#(a - b * np.log(x + c))
         self.th = bound
+
+class Trial():
+    def __init__(self, prob_A=0.5):
+        self.prob_A = prob_A
+        self.truth_value = np.random.choice(["A", "B"], p=[prob_A, 1 - prob_A])
