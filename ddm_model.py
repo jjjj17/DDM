@@ -25,6 +25,7 @@ class DDM():
 
         noise_vector = np.random.randn(trials,timesteps)
         trial_objects = [Trial(prob_A=0.5) for _ in range(trials)]
+        reaction_times = np.zeros((trials,1))
 
         for i, trial in enumerate(trial_objects):
             trial_drift = self.drift_rate if trial.truth_value == "A" else -self.drift_rate
@@ -47,11 +48,13 @@ class DDM():
             else:
                 results.append(("None", str(trial.truth_value)))
             trajectories.append(traj[:y+1])
+            reaction_times[i] = y * self.dt
 
             
         self.simulated_trajectories = trajectories
         self.simulated_results = results
 
+        self.reaction_times = reaction_times
         self.error_rate = sum((x[0]!=x[1] for x in self.simulated_results))/trials
     
     def plot_trajectories(self):
