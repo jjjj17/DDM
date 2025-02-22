@@ -12,7 +12,7 @@ class DDM():
     def __init__(self, drift_rate, noise_mag, threshold, initial_condition = 0):
         self.drift_rate = drift_rate #positive values go towards A (top)
         self.noise_mag = noise_mag #noise values should go from 0 to 1.
-        self.threshold = Threshold(threshold)
+        self.threshold = threshold
         self.initial_condition = initial_condition
 
         self.simulated_trajectories = None
@@ -35,6 +35,8 @@ class Threshold():
             x = np.linspace(0, self.timesteps * self.dt, self.timesteps)
             bound = self.a * np.exp(-self.b * x) + self.c
             self.simulated_th = bound
+        else:
+            raise ValueError("Incorrect threshold type.")
 
 class Trial():
     def __init__(self, prob_A=0.5):
@@ -61,7 +63,7 @@ class Simulation():
 
         #creation of variables for simulation
         noise_vector = np.random.randn(trials,timesteps)
-        trial_objects = [Trial(prob_A=0.5) for _ in range(trials)]
+        trial_objects = [Trial(prob_A=0.5) for _ in range(trials)] #here is the probability of A. maybe this should be an input for the simulation
         reaction_times = np.zeros((trials,1))
         results = []
         trajectories = []
