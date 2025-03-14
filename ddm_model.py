@@ -28,17 +28,21 @@ class DDM:
         self.simulated_trajectories = None
         self.simulated_results = None
 
-    def fit(self, trials_data: np.ndarray) -> optuna.Study:
+    def fit(self, trials_reactiontimes: np.ndarray, true_labels: np.ndarray, fitting_trials: int = 100, method: str = "mse", accuracy_weight: float = 0.5) -> optuna.Study:
         """
         Fit the DDM model to the given trials data using Optuna for hyperparameter optimization.
 
-        :param trials_data: The data from the trials.
+        :param trials_reactiontimes: The reaction times from the trials.
+        :param true_labels: The true labels for the trials.
+        :param fitting_trials: The number of trials for the optimization process.
+        :param method: The fitting method to use ("mse" or "nll").
+        :param accuracy_weight: The weight given to accuracy in the objective function (only used for "mse" method).
         :return: The Optuna study object.
         """
         timesteps = 1000
         dt = 1
 
-        def objective(trial: optuna.Trial) -> float:
+        def objective_mse(trial: optuna.Trial) -> float:
             drift_rate = trial.suggest_float("drift_rate", 0.001, 0.2)
             noise_mag = trial.suggest_float("noise_mag", 0.01, 1.0)
             threshold = trial.suggest_float("threshold", 0.1, 20.0)
@@ -47,13 +51,44 @@ class DDM:
             self.noise_mag = noise_mag
             self.threshold = Threshold(threshold)
 
-            simulation = Simulation(self, dt, timesteps, len(trials_data))
+            simulation = Simulation(self, dt, timesteps, len(trials_reactiontimes))
 
-            error = np.mean((simulation.reaction_times - trials_data) ** 2)  # MSE
-            return error
+            mse = np.mean((simulation.reaction_times - trials_reactiontimes) ** 2)  # MSE
+            accuracy = np.mean([1 if result[0] == true_label else 0 for result, true_label in zip(simulation.simulated_results, true_labels)])
+
+            # Combine MSE and accuracy into a single objective function
+            objective_value = mse * (1 - accuracy_weight) + (1 - accuracy) * accuracy_weight
+            return objective_value
+
+        def negative_log_likelihood(simulated_reaction_times, observed_reaction_times):
+            mean = np.mean(simulated_reaction_times)
+            std = np.std(simulated_reaction_times)
+            nll = -np.sum(np.log(1 / (std * np.sqrt(2 * np.pi)) * np.exp(-0.5 * ((observed_reaction_times - mean) / std) ** 2)))
+            return nll
+
+        def objective_nll(trial: optuna.Trial) -> float:
+            drift_rate = trial.suggest_float("drift_rate", 0.001, 0.2)
+            noise_mag = trial.suggest_float("noise_mag", 0.01, 1.0)
+            threshold = trial.suggest_float("threshold", 0.1, 20.0)
+
+            self.drift_rate = drift_rate
+            self.noise_mag = noise_mag
+            self.threshold = Threshold(threshold)
+
+            simulation = Simulation(self, dt, timesteps, len(trials_reactiontimes))
+
+            nll = negative_log_likelihood(simulation.reaction_times, trials_reactiontimes)
+            return nll
+
+        if method == "mse":
+            objective = objective_mse
+        elif method == "nll":
+            objective = objective_nll
+        else:
+            raise ValueError("Invalid method. Choose 'mse' or 'nll'.")
 
         study = optuna.create_study(direction="minimize")
-        study.optimize(objective, n_trials=100)
+        study.optimize(objective, n_trials=fitting_trials)
 
         best_params = study.best_params
         print(f"Best parameters: {best_params}")
